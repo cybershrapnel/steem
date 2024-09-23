@@ -12,7 +12,7 @@ const postingKey = 'steemkey'; // Replace with your private posting key
 // Post details
 const title = 'Image on STEEM\'s Chain from the MEQUAVIS';
 const tags = ['photography', 'steemit', 'ai', 'eve', 'nanocheeze']; // Tags for your post
-const permlink = 'random-image-mequavis-' + Math.random().toString(36).substr(2, 9); // Unique random permlink
+const permlink = 'random-image-mequavis-' + Math.random().toString(36).substr(2, 9) + '-' + Date.now(); // Unique random permlink
 const mainTag = 'photography'; // Main category/tag
 
 // Folder where images are stored
@@ -107,6 +107,7 @@ https://cybershrapnel.github.io/steem/#${steemitUrl}
 
 // Run the script every 5.5 minutes (330,000 milliseconds)
 setInterval(() => {
+    permlink = 'random-image-mequavis-' + Math.random().toString(36).substr(2, 9) + '-' + Date.now();
     postOnSteemit();
 }, 330000);
 
