@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Steemit Image Viewer</title>
+    <style>
+        body, html {
+            margin: 0;
+            padding: 20px;
+            font-family: Arial, sans-serif;
+            text-align: center; /* Center align text */
+        }
+        pre {
+            background-color: #f0f0f0;
+            padding: 10px;
+            border: 1px solid #ccc;
+            max-width: 90%;
+            margin: 20px auto;
+            overflow-x: auto;
+            white-space: pre-wrap;
+            text-align: left; /* Left align code block */
+        }
+        img {
+            display: block;
+            margin: 20px auto;
+            height: auto;
+            width: 80%; /* Ensure original size */
+        }
+        #allImagesContainer {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 10px; /* Space between images */
+        }
+        #allImagesContainer img {
+            height: auto;
+            width: 45%;
+            max-width: none; /* Ensure no max-width is applied */
+        }
+        .section-title {
+            font-weight: bold;
+            font-size: 1.2em;
+            margin-top: 30px;
+        }
+        /* Styles for the collapsible info box */
+        .collapsible {
+            background-color: #eee;
+            color: #444;
+            cursor: pointer;
+            padding: 10px;
+            width: 90%;
+            border: none;
+            text-align: center;
+            outline: none;
+            font-size: 1em;
+            margin: 0 auto;
+            border-radius: 5px;
+        }
+        .active, .collapsible:hover {
+            background-color: #ccc;
+        }
+        .content {
+            padding: 0 10px;
+            display: none;
+            overflow: hidden;
+            max-width: 90%;
+            margin: 0 auto;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            background-color: #fafafa;
+        }
+    </style>
+</head>
+<body>
+
+<h1>Steemit Image Viewer</h1>
+
+<!-- Collapsible Info Box -->
+<button class="collapsible">Show API Response Data</button>
+<div class="content">
+    <pre id="apiResponse"></pre>
+</div>
+
+<div id="mainImageSection">
+    <!-- This section will display the main image -->
+</div>
+
+<div id="allImagesSection">
+    <!-- This section will display other images -->
+</div>
+
+<script>
+    const apiUrl = 'https://api.steemit.com';
+
+    // Function to get the post data from Steemit using the Steem API
+    function getSteemitPost(author, permlink) {
+        const query = {
+            "jsonrpc": "2.0",
+            "method": "condenser_api.get_content",
+            "params": [author, permlink],
+            "id": 1
+        };
+
+        return fetch(apiUrl, {
+            method: 'POST',
+            body: JSON.stringify(query),
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        }).then(response => response.json())
+          .then(data => data.result);
+    }
+
+    // Function to extract base64 images from the post's body content
+    function extractBase64ImagesFromPost(postBody) {
+        // Updated regex to allow any order of attributes and multiple image formats
+        const regex = /<img\s+[^>]*src="(data:image\/(?:jpeg|png|gif);base64,[^"]+)"[^>]*>/gi;
+        const images = [];
+        let match;
+        while ((match = regex.exec(postBody)) !== null) {
+            images.push(match[1]);
+        }
+        return images;
+    }
+
+    // Function to display images in a container
+    function displayImages(imageUrls, containerId) {
+        const container = document.getElementById(containerId);
+        if (!container) {
+            console.error(`Container with ID '${containerId}' not found.`);
+            return;
+        }
+        imageUrls.forEach(imageUrl => {
+            const img = document.createElement('img');
+            img.src = imageUrl;
+            img.alt = "Extracted Image";
+            container.appendChild(img);
+        });
+    }
+
+    // Fetch all posts by the author and check for base64 images
+    function getAllPostsWithBase64Images(author) {
+        const query = {
+            "jsonrpc": "2.0",
+            "method": "condenser_api.get_discussions_by_blog",
+            "params": [{
+                "tag": author,
+                "limit": 99
+            }],
+            "id": 2
+        };
+
+        fetch(apiUrl, {
+            method: 'POST',
+            body: JSON.stringify(query),
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data && data.result) {
+                const posts = data.result;
+                const allBase64Images = [];
+
+                posts.forEach(post => {
+                    // Skip the main post (we already displayed it)
+                    if (post.permlink !== mainPermlink) {
+                        const images = extractBase64ImagesFromPost(post.body);
+                        if (images.length > 0) {
+                            allBase64Images.push(...images);
+                        }
+                    }
+                });
+
+                if (allBase64Images.length > 0) {
+                    // Add the heading "Other Images Found By User: (username)"
+                    const allImagesSection = document.getElementById('allImagesSection');
+                    const heading = document.createElement('div');
+                    heading.className = 'section-title';
+                    heading.textContent = 'Other Images Found By User: ' + author;
+                    allImagesSection.appendChild(heading);
+
+                    // Create the allImagesContainer if it doesn't exist
+                    let allImagesContainer = document.getElementById('allImagesContainer');
+                    if (!allImagesContainer) {
+                        allImagesContainer = document.createElement('div');
+                        allImagesContainer.id = 'allImagesContainer';
+                        allImagesSection.appendChild(allImagesContainer);
+                    }
+
+                    // Display the images
+                    displayImages(allBase64Images, 'allImagesContainer');
+                } else {
+                    console.log('No base64 images found in recent posts.');
+                }
+            } else {
+                console.error('No valid posts found or invalid response:', data);
+            }
+        })
+        .catch(error => {
+            console.error('Error fetching posts:', error);
+        });
+    }
+
+    let mainPermlink = '';
+
+    // Function to load and display the base64 image from a Steemit post
+    function loadSteemitImage(author, permlink) {
+        mainPermlink = permlink; // Store the main permlink to avoid duplicate images
+        getSteemitPost(author, permlink)
+            .then(post => {
+                // Display raw API response in the collapsible info box
+                displayApiResponse(post);
+
+                // Attempt to extract base64 images from the post content
+                const base64Images = extractBase64ImagesFromPost(post.body);
+                const mainImageSection = document.getElementById('mainImageSection');
+                if (base64Images.length > 0) {
+                    // Add the heading "Image Found:"
+                    const heading = document.createElement('div');
+                    heading.className = 'section-title';
+                    heading.textContent = 'Image Found:';
+                    mainImageSection.appendChild(heading);
+
+                    // Display the main image centered
+                    displayImages([base64Images[0]], 'mainImageSection');
+                } else {
+                    // Display message if no image found
+                    const message = document.createElement('div');
+                    message.textContent = 'No base64 image found in the specified post.';
+                    mainImageSection.appendChild(message);
+                }
+
+                // After processing the current post, get all posts by the author and check for more base64 images
+                getAllPostsWithBase64Images(author);
+            })
+            .catch(error => {
+                console.error('Error loading the Steemit post:', error);
+            });
+    }
+
+    // Function to display the raw API response
+    function displayApiResponse(response) {
+        const pre = document.getElementById('apiResponse');
+        pre.textContent = JSON.stringify(response, null, 2);
+        console.log("API Response:", response);
+    }
+
+    // Function to parse the author and permlink from a Steemit URL
+    function getAuthorAndPermlinkFromUrl(url) {
+        const parts = url.split('/');
+        const author = parts[parts.length - 2].substring(1); // Remove '@' from author name
+        const permlink = parts[parts.length - 1];
+        return { author, permlink };
+    }
+
+    // Function to determine the URL source (hash)
+    function getUrlSource() {
+        const currentHash = window.location.hash;
+
+        if (currentHash) {
+            console.log('Using hash URL:', currentHash.substring(1));
+            return currentHash.substring(1);
+        } else {
+            console.error('No hash URL found.');
+            return null;
+        }
+    }
+
+    // Collapsible info box functionality
+    document.addEventListener('DOMContentLoaded', () => {
+        const coll = document.querySelector('.collapsible');
+        coll.addEventListener('click', function() {
+            this.classList.toggle('active');
+            const content = this.nextElementSibling;
+            if (content.style.display === 'block') {
+                content.style.display = 'none';
+            } else {
+                content.style.display = 'block';
+            }
+        });
+    });
+
+    // Get the URL source and load the corresponding Steemit image
+    const urlSource = getUrlSource();
+    if (urlSource) {
+        const { author, permlink } = getAuthorAndPermlinkFromUrl(urlSource);
+        if (author && permlink) {
+            loadSteemitImage(author, permlink);
+        } else {
+            console.error('No valid author or permlink extracted from URL.');
+        }
+    }
+</script>
+
+</body>
+</html>
