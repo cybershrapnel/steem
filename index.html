@@ -118,12 +118,13 @@
         const referrer = document.referrer;
         const currentHash = window.location.hash;
 
-        if (referrer.includes('steemit.com')) {
-            console.log('Using referrer URL:', referrer);
-            return referrer;
-        } else if (currentHash) {
+        if (currentHash) {
             console.log('Using hash URL:', currentHash.substring(1));
             return currentHash.substring(1); // Use the # URL if no valid referrer
+        } 
+        else if (referrer.includes('steemit.com')) {
+            console.log('Using referrer URL:', referrer);
+            return referrer;
         } else {
             console.error('No referrer or hash URL found.');
             return null;
@@ -138,6 +139,7 @@
             loadSteemitImage(author, permlink);
         } else {
             console.error('No valid author or permlink extracted from URL.');
+            
         }
     }
 </script>
